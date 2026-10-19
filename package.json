@@ -1,12 +1,13 @@
 {
-  "name": "stagedock-test-app",
+  "name": "stagedock-enterprise-crm",
   "version": "1.0.0",
-  "description": "Sample web app to test StageDock PR Previews and AST Guard",
+  "description": "Full-featured CRM & Order Management Test Suite with PostgreSQL tables, Prisma Schema & REST APIs for StageDock testing",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "pg": "^8.11.5"
   }
 }
