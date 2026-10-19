@@ -1,0 +1,12 @@
+{
+  "name": "stagedock-test-app",
+  "version": "1.0.0",
+  "description": "Sample web app to test StageDock PR Previews and AST Guard",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
