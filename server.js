@@ -1,18 +1,41 @@
 const express = require('express');
+const session = require('express-session');
+const crypto = require('crypto');
 const { Pool } = require('pg');
 
 const app = express();
-app.use(express.json());
 const PORT = process.env.PORT || 3000;
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 // =========================================================================
 // 🔥 PR TEST CHANGE AREA: GitHub par PR banate waqt in values ko change karein!
 // =========================================================================
-const APP_VERSION = "v1.0 - Production CRM Base";
-const THEME_ACCENT = "#3b82f6"; // Blue (PR mein "#10b981" Emerald Green ya "#8b5cf6" Purple karein)
-const ANNOUNCEMENT_TEXT = "🚀 Live Database Sandbox Active — Connected to Ephemeral Postgres!";
+const APP_VERSION = 'v1.0 - Production CRM Base';
+const THEME_ACCENT = '#3b82f6'; // Blue (PR mein "#10b981" Emerald Green ya "#8b5cf6" Purple karein)
+const ANNOUNCEMENT_TEXT = '🚀 Live Database Sandbox Active — Connected to Ephemeral Postgres!';
 const TAX_RATE_PERCENT = 18; // GST %
 // =========================================================================
+
+const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-only-change-me-session-secret';
+const DEMO_LOGIN_USERNAME = process.env.DEMO_LOGIN_USERNAME || 'admin';
+const DEMO_LOGIN_PASSWORD = process.env.DEMO_LOGIN_PASSWORD || 'admin123';
+
+app.use(
+  session({
+    name: 'stagedock.sid',
+    secret: SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 1000 * 60 * 60 * 8
+    }
+  })
+);
 
 // Database connection pool (Uses StageDock's injected DATABASE_URL if available)
 const pool = process.env.DATABASE_URL
@@ -21,122 +44,196 @@ const pool = process.env.DATABASE_URL
 
 // Built-in Realistic Fallback Mock Data (Plus Auto-Seed into Real Postgres if connected)
 const defaultCustomers = [
-  { id: 101, full_name: "Aarav Sharma", email: "aarav@techvista.in", company: "TechVista Solutions", plan: "ENTERPRISE", status: "ACTIVE", created_at: "2025-02-10 10:15" },
-  { id: 102, full_name: "Priya Nair", email: "priya@cloudscale.io", company: "CloudScale Labs", plan: "PRO", status: "ACTIVE", created_at: "2025-02-11 11:30" },
-  { id: 103, full_name: "Rohan Verma", email: "rohan@finstack.co", company: "FinStack India", plan: "ENTERPRISE", status: "ACTIVE", created_at: "2025-02-12 14:20" },
-  { id: 104, full_name: "Neha Gupta", email: "neha@devpulse.dev", company: "DevPulse Systems", plan: "STARTER", status: "TRIAL", created_at: "2025-02-14 09:45" },
-  { id: 105, full_name: "Vikramaditya Joshi", email: "vikram@nexacommerce.com", company: "NexaCommerce", plan: "PRO", status: "ACTIVE", created_at: "2025-02-15 16:05" },
-  { id: 106, full_name: "Ananya Deshmukh", email: "ananya@zenithai.in", company: "Zenith AI", plan: "ENTERPRISE", status: "PAST_DUE", created_at: "2025-02-16 18:12" }
+  { id: 101, full_name: 'Aarav Sharma', email: 'aarav@techvista.in', company: 'TechVista Solutions', plan: 'ENTERPRISE', status: 'ACTIVE', created_at: '2025-02-10 10:15' },
+  { id: 102, full_name: 'Priya Nair', email: 'priya@cloudscale.io', company: 'CloudScale Labs', plan: 'PRO', status: 'ACTIVE', created_at: '2025-02-11 11:30' },
+  { id: 103, full_name: 'Rohan Verma', email: 'rohan@finstack.co', company: 'FinStack India', plan: 'ENTERPRISE', status: 'ACTIVE', created_at: '2025-02-12 14:20' },
+  { id: 104, full_name: 'Neha Gupta', email: 'neha@devpulse.dev', company: 'DevPulse Systems', plan: 'STARTER', status: 'TRIAL', created_at: '2025-02-14 09:45' },
+  { id: 105, full_name: 'Vikramaditya Joshi', email: 'vikram@nexacommerce.com', company: 'NexaCommerce', plan: 'PRO', status: 'ACTIVE', created_at: '2025-02-15 16:05' },
+  { id: 106, full_name: 'Ananya Deshmukh', email: 'ananya@zenithai.in', company: 'Zenith AI', plan: 'ENTERPRISE', status: 'PAST_DUE', created_at: '2025-02-16 18:12' }
 ];
 
 const defaultOrders = [
-  { id: 5001, invoice_number: "INV-2026-001", customer_name: "Aarav Sharma", company: "TechVista Solutions", product_name: "StageDock Sandbox + Guard Bundle", amount_inr: 6498, payment_status: "PAID", created_at: "2025-02-16 12:00" },
-  { id: 5002, invoice_number: "INV-2026-002", customer_name: "Priya Nair", company: "CloudScale Labs", product_name: "StageDock Sandbox (Monthly)", amount_inr: 3999, payment_status: "PAID", created_at: "2025-02-16 13:40" },
-  { id: 5003, invoice_number: "INV-2026-003", customer_name: "Rohan Verma", company: "FinStack India", product_name: "Full Enterprise Suite (All 3 Modules)", amount_inr: 14497, payment_status: "PAID", created_at: "2025-02-17 09:15" },
-  { id: 5004, invoice_number: "INV-2026-004", customer_name: "Neha Gupta", company: "DevPulse Systems", product_name: "StageDock Guard Add-on", amount_inr: 2499, payment_status: "PENDING", created_at: "2025-02-17 15:22" },
-  { id: 5005, invoice_number: "INV-2026-005", customer_name: "Vikramaditya Joshi", company: "NexaCommerce", product_name: "StageDock Modernize Engine", amount_inr: 7999, payment_status: "PAID", created_at: "2025-02-18 11:10" }
+  { id: 5001, invoice_number: 'INV-2026-001', customer_name: 'Aarav Sharma', company: 'TechVista Solutions', product_name: 'StageDock Sandbox + Guard Bundle', amount_inr: 6498, payment_status: 'PAID', created_at: '2025-02-16 12:00' },
+  { id: 5002, invoice_number: 'INV-2026-002', customer_name: 'Priya Nair', company: 'CloudScale Labs', product_name: 'StageDock Sandbox (Monthly)', amount_inr: 3999, payment_status: 'PAID', created_at: '2025-02-16 13:40' },
+  { id: 5003, invoice_number: 'INV-2026-003', customer_name: 'Rohan Verma', company: 'FinStack India', product_name: 'Full Enterprise Suite (All 3 Modules)', amount_inr: 14497, payment_status: 'PAID', created_at: '2025-02-17 09:15' },
+  { id: 5004, invoice_number: 'INV-2026-004', customer_name: 'Neha Gupta', company: 'DevPulse Systems', product_name: 'StageDock Guard Add-on', amount_inr: 2499, payment_status: 'PENDING', created_at: '2025-02-17 15:22' },
+  { id: 5005, invoice_number: 'INV-2026-005', customer_name: 'Vikramaditya Joshi', company: 'NexaCommerce', product_name: 'StageDock Modernize Engine', amount_inr: 7999, payment_status: 'PAID', created_at: '2025-02-18 11:10' }
 ];
 
 const defaultAuditLogs = [
-  { id: 1, actor: "system@stagedock.dev", action: "AUTO_DB_MIGRATION", endpoint: "POST /api/internal/seed", risk_level: "LOW", timestamp: "Just now" },
-  { id: 2, actor: "aarav@techvista.in", action: "INVOICE_GENERATED", endpoint: "POST /api/orders", risk_level: "LOW", timestamp: "5 mins ago" },
-  { id: 3, actor: "guard-bot@stagedock.dev", action: "AST_SCHEMA_CHECK", endpoint: "GET /api/customers", risk_level: "MEDIUM", timestamp: "12 mins ago" },
-  { id: 4, actor: "rohan@finstack.co", action: "API_KEY_ROTATED", endpoint: "DELETE /api/tokens/old", risk_level: "HIGH", timestamp: "28 mins ago" }
+  { id: 1, actor: 'system@stagedock.dev', action: 'AUTO_DB_MIGRATION', endpoint: 'POST /api/internal/seed', risk_level: 'LOW', timestamp: 'Just now' },
+  { id: 2, actor: 'aarav@techvista.in', action: 'INVOICE_GENERATED', endpoint: 'POST /api/orders', risk_level: 'LOW', timestamp: '5 mins ago' },
+  { id: 3, actor: 'guard-bot@stagedock.dev', action: 'AST_SCHEMA_CHECK', endpoint: 'GET /api/customers', risk_level: 'MEDIUM', timestamp: '12 mins ago' },
+  { id: 4, actor: 'rohan@finstack.co', action: 'API_KEY_ROTATED', endpoint: 'DELETE /api/tokens/old', risk_level: 'HIGH', timestamp: '28 mins ago' }
 ];
 
 let runtimeCustomers = [...defaultCustomers];
 let runtimeOrders = [...defaultOrders];
 let runtimeLogs = [...defaultAuditLogs];
-let dbSourceMode = "In-Memory Smart Seed (Fallback Ready)";
+let dbSourceMode = 'In-Memory Smart Seed (Fallback Ready)';
 
-async function initDatabaseIfAvailable() {
-  if (!pool) return;
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS customers (
-        id SERIAL PRIMARY KEY,
-        full_name VARCHAR(120) NOT NULL,
-        email VARCHAR(150) UNIQUE NOT NULL,
-        company VARCHAR(120) NOT NULL,
-        plan VARCHAR(40) DEFAULT 'ENTERPRISE',
-        status VARCHAR(30) DEFAULT 'ACTIVE',
-        created_at VARCHAR(50) DEFAULT '2025-02-18'
-      );
-    `);
-    const countRes = await pool.query('SELECT COUNT(*) FROM customers');
-    if (parseInt(countRes.rows[0].count, 10) === 0) {
-      for (const c of defaultCustomers) {
-        await pool.query(
-          'INSERT INTO customers (full_name, email, company, plan, status, created_at) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING',
-          [c.full_name, c.email, c.company, c.plan, c.status, c.created_at]
-        );
-      }
-    }
-    const dbRows = await pool.query('SELECT * FROM customers ORDER BY id DESC LIMIT 50');
-    if (dbRows.rows.length > 0) {
-      runtimeCustomers = dbRows.rows;
-      dbSourceMode = "Live PostgreSQL Container (DATABASE_URL Connected)";
-    }
-  } catch (err) {
-    console.log("Using resilient in-memory dataset:", err.message);
-  }
+function hashText(value) {
+  return crypto.createHash('sha256').update(String(value)).digest();
 }
 
-initDatabaseIfAvailable();
+function timingSafeMatch(input, expected) {
+  const inputDigest = hashText(input);
+  const expectedDigest = hashText(expected);
+  return crypto.timingSafeEqual(inputDigest, expectedDigest);
+}
 
-// =========================================================================
-// REST API ENDPOINTS (StageDock Guard monitors these routes for AST changes!)
-// =========================================================================
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: "healthy",
-    version: APP_VERSION,
-    databaseMode: dbSourceMode,
-    tables: ["customers", "orders", "audit_logs"],
-    totalCustomers: runtimeCustomers.length,
-    totalOrders: runtimeOrders.length
-  });
-});
+function isAuthenticated(req) {
+  return Boolean(req.session && req.session.isAuthenticated);
+}
 
-app.get('/api/customers', (req, res) => {
-  res.json({ count: runtimeCustomers.length, data: runtimeCustomers });
-});
+function requireBrowserAuth(req, res, next) {
+  if (isAuthenticated(req)) {
+    return next();
+  }
+  return res.redirect('/login');
+}
 
-app.get('/api/orders', (req, res) => {
-  res.json({ taxRatePercent: TAX_RATE_PERCENT, count: runtimeOrders.length, data: runtimeOrders });
-});
+function requireApiAuth(req, res, next) {
+  if (isAuthenticated(req)) {
+    return next();
+  }
+  return res.status(401).json({ error: 'Authentication required' });
+}
 
-app.post('/api/customers', async (req, res) => {
-  const { full_name, email, company, plan } = req.body;
-  const newCustomer = {
-    id: runtimeCustomers.length + 101,
-    full_name: full_name || "New Sandbox User",
-    email: email || `user${Date.now()}@company.in`,
-    company: company || "Sandbox Corp",
-    plan: plan || "ENTERPRISE",
-    status: "ACTIVE",
-    created_at: new Date().toLocaleTimeString()
-  };
-  runtimeCustomers.unshift(newCustomer);
-  runtimeLogs.unshift({
-    id: runtimeLogs.length + 1,
-    actor: newCustomer.email,
-    action: "CUSTOMER_CREATED",
-    endpoint: "POST /api/customers",
-    risk_level: "LOW",
-    timestamp: "Just now"
-  });
-  res.status(201).json({ success: true, customer: newCustomer });
-});
+function renderLoginPage(errorMessage = '') {
+  const message = errorMessage
+    ? '<div class="error">Invalid username or password.</div>'
+    : '';
 
-// =========================================================================
-// MAIN INTERACTIVE WEB DASHBOARD WITH LIVE DATABASE TABLES
-// =========================================================================
-app.get('/', (req, res) => {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign in — Acme Enterprise CRM</title>
+  <style>
+    :root {
+      --accent: ${THEME_ACCENT};
+      --bg: #090d16;
+      --card: #111827;
+      --border: #1f2937;
+      --text: #f9fafb;
+      --muted: #9ca3af;
+      --danger: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at top, rgba(59,130,246,0.15), transparent 35%), var(--bg);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .login-card {
+      width: 100%;
+      max-width: 460px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-top: 4px solid var(--accent);
+      border-radius: 14px;
+      padding: 28px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.35);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .brand-logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 800;
+    }
+    h1 { margin: 0; font-size: 22px; }
+    p { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+    form { margin-top: 24px; display: grid; gap: 14px; }
+    label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 6px; }
+    input {
+      width: 100%;
+      background: #0d1320;
+      border: 1px solid #374151;
+      color: #fff;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 14px;
+    }
+    button {
+      margin-top: 6px;
+      background: var(--accent);
+      border: none;
+      color: white;
+      font-weight: 700;
+      border-radius: 8px;
+      padding: 11px 14px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover { opacity: 0.95; }
+    .error {
+      margin-top: 10px;
+      border: 1px solid rgba(248,113,113,0.4);
+      background: rgba(239,68,68,0.12);
+      color: var(--danger);
+      border-radius: 8px;
+      padding: 9px 11px;
+      font-size: 13px;
+    }
+    .footer {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <main class="login-card">
+    <div class="brand">
+      <div class="brand-logo">AC</div>
+      <div>
+        <h1>Acme CRM Login</h1>
+        <p>Sign in to access StageDock dashboard.</p>
+      </div>
+    </div>
+    ${message}
+    <form action="/login" method="POST" autocomplete="off">
+      <div>
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" required />
+      </div>
+      <div>
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" required />
+      </div>
+      <button type="submit">Sign in</button>
+    </form>
+    <div class="footer">Use demo credentials configured via environment variables.</div>
+  </main>
+</body>
+</html>`;
+}
+
+function renderDashboardPage() {
   const totalRevenue = runtimeOrders.reduce((acc, o) => acc + o.amount_inr, 0);
-  const activeCount = runtimeCustomers.filter(c => c.status === 'ACTIVE').length;
+  const activeCount = runtimeCustomers.filter((c) => c.status === 'ACTIVE').length;
 
-  res.send(`<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -198,6 +295,12 @@ app.get('/', (req, res) => {
       font-weight: 800;
       font-size: 18px;
     }
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
     .version-pill {
       background: rgba(255,255,255,0.08);
       border: 1px solid var(--accent);
@@ -207,6 +310,17 @@ app.get('/', (req, res) => {
       font-size: 13px;
       font-weight: 600;
     }
+    .logout-btn {
+      background: transparent;
+      border: 1px solid #ef4444;
+      color: #fca5a5;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .logout-btn:hover { background: rgba(239,68,68,0.1); }
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
@@ -328,7 +442,12 @@ app.get('/', (req, res) => {
           <div style="font-size: 13px; color: var(--muted);">DB Engine: ${dbSourceMode}</div>
         </div>
       </div>
-      <div class="version-pill">${APP_VERSION}</div>
+      <div class="topbar-actions">
+        <div class="version-pill">${APP_VERSION}</div>
+        <form action="/logout" method="POST" style="margin:0;">
+          <button type="submit" class="logout-btn">Logout</button>
+        </form>
+      </div>
     </div>
 
     <!-- KPI METRICS -->
@@ -390,7 +509,7 @@ app.get('/', (req, res) => {
             </tr>
           </thead>
           <tbody>
-            ${runtimeCustomers.map(c => `
+            ${runtimeCustomers.map((c) => `
               <tr>
                 <td style="font-family:monospace; color:#60a5fa;">#${c.id}</td>
                 <td style="font-weight:600;">${c.full_name}</td>
@@ -432,7 +551,7 @@ app.get('/', (req, res) => {
             </tr>
           </thead>
           <tbody>
-            ${runtimeOrders.map(o => `
+            ${runtimeOrders.map((o) => `
               <tr>
                 <td style="font-family:monospace; color:#a78bfa;">#${o.id}</td>
                 <td style="font-family:monospace; font-weight:600;">${o.invoice_number}</td>
@@ -473,7 +592,7 @@ app.get('/', (req, res) => {
             </tr>
           </thead>
           <tbody>
-            ${runtimeLogs.map(l => `
+            ${runtimeLogs.map((l) => `
               <tr>
                 <td style="font-family:monospace;">#${l.id}</td>
                 <td style="font-family:monospace; color:#93c5fd;">${l.actor}</td>
@@ -511,9 +630,133 @@ app.get('/', (req, res) => {
     }
   </script>
 </body>
-</html>`);
+</html>`;
+}
+
+async function initDatabaseIfAvailable() {
+  if (!pool) return;
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS customers (
+        id SERIAL PRIMARY KEY,
+        full_name VARCHAR(120) NOT NULL,
+        email VARCHAR(150) UNIQUE NOT NULL,
+        company VARCHAR(120) NOT NULL,
+        plan VARCHAR(40) DEFAULT 'ENTERPRISE',
+        status VARCHAR(30) DEFAULT 'ACTIVE',
+        created_at VARCHAR(50) DEFAULT '2025-02-18'
+      );
+    `);
+    const countRes = await pool.query('SELECT COUNT(*) FROM customers');
+    if (parseInt(countRes.rows[0].count, 10) === 0) {
+      for (const c of defaultCustomers) {
+        await pool.query(
+          'INSERT INTO customers (full_name, email, company, plan, status, created_at) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING',
+          [c.full_name, c.email, c.company, c.plan, c.status, c.created_at]
+        );
+      }
+    }
+    const dbRows = await pool.query('SELECT * FROM customers ORDER BY id DESC LIMIT 50');
+    if (dbRows.rows.length > 0) {
+      runtimeCustomers = dbRows.rows;
+      dbSourceMode = 'Live PostgreSQL Container (DATABASE_URL Connected)';
+    }
+  } catch (err) {
+    console.log('Using resilient in-memory dataset:', err.message);
+  }
+}
+
+initDatabaseIfAvailable();
+
+app.get('/login', (req, res) => {
+  if (isAuthenticated(req)) {
+    return res.redirect('/dashboard');
+  }
+  return res.send(renderLoginPage());
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Enterprise CRM Sandbox App running on port ${PORT}`);
+app.post('/login', (req, res) => {
+  const { username = '', password = '' } = req.body;
+  const usernameOk = timingSafeMatch(username, DEMO_LOGIN_USERNAME);
+  const passwordOk = timingSafeMatch(password, DEMO_LOGIN_PASSWORD);
+
+  if (!usernameOk || !passwordOk) {
+    return res.status(401).send(renderLoginPage('Invalid credentials'));
+  }
+
+  req.session.isAuthenticated = true;
+  req.session.username = DEMO_LOGIN_USERNAME;
+  return res.redirect('/dashboard');
 });
+
+app.post('/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.clearCookie('stagedock.sid');
+    res.redirect('/login');
+  });
+});
+
+// =========================================================================
+// REST API ENDPOINTS (StageDock Guard monitors these routes for AST changes!)
+// =========================================================================
+app.use('/api', requireApiAuth);
+
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    version: APP_VERSION,
+    databaseMode: dbSourceMode,
+    tables: ['customers', 'orders', 'audit_logs'],
+    totalCustomers: runtimeCustomers.length,
+    totalOrders: runtimeOrders.length
+  });
+});
+
+app.get('/api/customers', (req, res) => {
+  res.json({ count: runtimeCustomers.length, data: runtimeCustomers });
+});
+
+app.get('/api/orders', (req, res) => {
+  res.json({ taxRatePercent: TAX_RATE_PERCENT, count: runtimeOrders.length, data: runtimeOrders });
+});
+
+app.post('/api/customers', (req, res) => {
+  const { full_name, email, company, plan } = req.body;
+  const newCustomer = {
+    id: runtimeCustomers.length + 101,
+    full_name: full_name || 'New Sandbox User',
+    email: email || `user${Date.now()}@company.in`,
+    company: company || 'Sandbox Corp',
+    plan: plan || 'ENTERPRISE',
+    status: 'ACTIVE',
+    created_at: new Date().toLocaleTimeString()
+  };
+
+  runtimeCustomers.unshift(newCustomer);
+  runtimeLogs.unshift({
+    id: runtimeLogs.length + 1,
+    actor: newCustomer.email,
+    action: 'CUSTOMER_CREATED',
+    endpoint: 'POST /api/customers',
+    risk_level: 'LOW',
+    timestamp: 'Just now'
+  });
+
+  res.status(201).json({ success: true, customer: newCustomer });
+});
+
+app.get('/', requireBrowserAuth, (req, res) => {
+  res.redirect('/dashboard');
+});
+
+app.get('/dashboard', requireBrowserAuth, (req, res) => {
+  res.send(renderDashboardPage());
+});
+
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Enterprise CRM Sandbox App running on port ${PORT}`);
+  });
+}
+
+module.exports = app;
