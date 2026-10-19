@@ -26,6 +26,8 @@ Open `http://localhost:3000/login`, sign in, and you will be redirected to the p
 
 ## Auth behavior
 
+
+
 - `GET /login` is public.
 - `POST /login` validates credentials server-side and sets an HTTP-only signed session cookie.
 - `POST /logout` destroys the session and redirects to `/login`.
