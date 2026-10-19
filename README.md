@@ -7,3 +7,4 @@ Yeh repository **StageDock (`stagedock.dev`)** ke automated PR Sandbox aur AST I
 2. `server.js` file ko edit karein aur `APP_VERSION`, `BANNER_COLOR`, ya `PROMO_MESSAGE` badlein.
 3. Nayi branch banakar **Pull Request (PR)** open karein.
 4. StageDock dashboard par live preview URL khol kar badlav dekhein!
+5. we have completed this task
