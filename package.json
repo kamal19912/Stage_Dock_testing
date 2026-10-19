@@ -4,10 +4,15 @@
   "description": "Full-featured CRM & Order Management Test Suite with PostgreSQL tables, Prisma Schema & REST APIs for StageDock testing",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test"
   },
   "dependencies": {
     "express": "^4.19.2",
+    "express-session": "^1.18.1",
     "pg": "^8.11.5"
+  },
+  "devDependencies": {
+    "supertest": "^7.1.3"
   }
 }
