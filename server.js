@@ -84,6 +84,15 @@ function timingSafeMatch(input, expected) {
   return crypto.timingSafeEqual(inputDigest, expectedDigest);
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 function isAuthenticated(req) {
   return Boolean(req.session && req.session.isAuthenticated);
 }
@@ -303,6 +312,20 @@ function renderDashboardPage() {
       gap: 10px;
       flex-wrap: wrap;
     }
+    .page-nav {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .page-nav a {
+      color: #d1d5db;
+      text-decoration: none;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 13px;
+    }
+    .page-nav a:hover { border-color: var(--accent); color: #fff; }
     .version-pill {
       background: rgba(255,255,255,0.08);
       border: 1px solid var(--accent);
@@ -445,6 +468,12 @@ function renderDashboardPage() {
         </div>
       </div>
       <div class="topbar-actions">
+        <nav class="page-nav" aria-label="Main navigation">
+          <a href="/dashboard">Overview</a>
+          <a href="/customers">Customers</a>
+          <a href="/orders">Orders</a>
+          <a href="/audit-logs">Audit Logs</a>
+        </nav>
         <div class="version-pill">${APP_VERSION}</div>
         <form action="/logout" method="POST" style="margin:0;">
           <button type="submit" class="logout-btn">Logout</button>
@@ -635,6 +664,76 @@ function renderDashboardPage() {
 </html>`;
 }
 
+function renderDataPage({ title, description, activePath, columns, rows }) {
+  const tableRows = rows.length
+    ? rows.map((row) => `
+        <tr>
+          ${columns.map((column) => `<td>${escapeHtml(row[column.key])}</td>`).join('')}
+        </tr>
+      `).join('')
+    : `<tr><td colspan="${columns.length}" class="empty">No records found.</td></tr>`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${escapeHtml(title)} — Acme Enterprise CRM</title>
+  <style>
+    :root { --accent: ${THEME_ACCENT}; --bg: #090d16; --card: #111827; --border: #1f2937; --text: #f9fafb; --muted: #9ca3af; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    .container { max-width: 1200px; margin: 0 auto; padding: 28px 20px 60px; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding-bottom: 22px; border-bottom: 1px solid var(--border); }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-logo { width: 42px; height: 42px; border-radius: 10px; background: var(--accent); display: grid; place-items: center; font-weight: 800; }
+    .brand a { color: #fff; text-decoration: none; font-weight: 800; font-size: 19px; }
+    .muted { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    nav { display: flex; gap: 8px; flex-wrap: wrap; }
+    nav a, .logout { color: #d1d5db; text-decoration: none; border: 1px solid var(--border); border-radius: 999px; padding: 7px 12px; font-size: 13px; background: transparent; }
+    nav a.active, nav a:hover { border-color: var(--accent); color: #fff; }
+    .logout { border-color: #ef4444; color: #fca5a5; cursor: pointer; }
+    h1 { margin: 30px 0 6px; font-size: 28px; }
+    .card { margin-top: 22px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
+    th { background: #0d1320; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .7px; padding: 14px 18px; }
+    td { padding: 15px 18px; border-top: 1px solid var(--border); color: #e5e7eb; white-space: nowrap; }
+    .empty { color: var(--muted); text-align: center; padding: 30px; }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-logo">AC</div>
+        <div><a href="/dashboard">Acme Enterprise CRM</a><div class="muted">StageDock Database Sandbox</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <nav aria-label="Main navigation">
+          <a class="${activePath === '/dashboard' ? 'active' : ''}" href="/dashboard">Overview</a>
+          <a class="${activePath === '/customers' ? 'active' : ''}" href="/customers">Customers</a>
+          <a class="${activePath === '/orders' ? 'active' : ''}" href="/orders">Orders</a>
+          <a class="${activePath === '/audit-logs' ? 'active' : ''}" href="/audit-logs">Audit Logs</a>
+        </nav>
+        <form action="/logout" method="POST"><button class="logout" type="submit">Logout</button></form>
+      </div>
+    </header>
+    <h1>${escapeHtml(title)}</h1>
+    <div class="muted">${escapeHtml(description)}</div>
+    <section class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr>${columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join('')}</tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>`;
+}
+
 async function initDatabaseIfAvailable() {
   if (!pool) return;
   try {
@@ -763,6 +862,10 @@ app.get('/api/orders', (req, res) => {
   res.json({ taxRatePercent: TAX_RATE_PERCENT, count: runtimeOrders.length, data: runtimeOrders });
 });
 
+app.get('/api/audit-logs', (req, res) => {
+  res.json({ count: runtimeLogs.length, data: runtimeLogs });
+});
+
 app.post('/api/customers', async (req, res) => {
   const { full_name, email, company, plan } = req.body;
 
@@ -836,6 +939,60 @@ app.get('/', requireBrowserAuth, (req, res) => {
 
 app.get('/dashboard', requireBrowserAuth, (req, res) => {
   res.send(renderDashboardPage());
+});
+
+app.get('/customers', requireBrowserAuth, (req, res) => {
+  res.send(renderDataPage({
+    title: 'Customers',
+    description: `${runtimeCustomers.length} customer records and subscription accounts`,
+    activePath: '/customers',
+    columns: [
+      { key: 'id', label: 'ID' },
+      { key: 'full_name', label: 'Full Name' },
+      { key: 'email', label: 'Email' },
+      { key: 'company', label: 'Company' },
+      { key: 'plan', label: 'Plan' },
+      { key: 'status', label: 'Status' },
+      { key: 'created_at', label: 'Created At' }
+    ],
+    rows: runtimeCustomers
+  }));
+});
+
+app.get('/orders', requireBrowserAuth, (req, res) => {
+  res.send(renderDataPage({
+    title: 'Orders & Invoices',
+    description: `${runtimeOrders.length} invoices with a ${TAX_RATE_PERCENT}% GST rate`,
+    activePath: '/orders',
+    columns: [
+      { key: 'id', label: 'Order ID' },
+      { key: 'invoice_number', label: 'Invoice' },
+      { key: 'customer_name', label: 'Customer' },
+      { key: 'company', label: 'Company' },
+      { key: 'product_name', label: 'Product' },
+      { key: 'amount_inr', label: 'Amount (INR)' },
+      { key: 'payment_status', label: 'Payment Status' },
+      { key: 'created_at', label: 'Created At' }
+    ],
+    rows: runtimeOrders
+  }));
+});
+
+app.get('/audit-logs', requireBrowserAuth, (req, res) => {
+  res.send(renderDataPage({
+    title: 'Security Audit Logs',
+    description: `${runtimeLogs.length} monitored CRM and API events`,
+    activePath: '/audit-logs',
+    columns: [
+      { key: 'id', label: 'ID' },
+      { key: 'actor', label: 'Actor' },
+      { key: 'action', label: 'Action' },
+      { key: 'endpoint', label: 'Endpoint' },
+      { key: 'risk_level', label: 'Risk' },
+      { key: 'timestamp', label: 'Time' }
+    ],
+    rows: runtimeLogs
+  }));
 });
 
 if (require.main === module) {

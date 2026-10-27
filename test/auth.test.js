@@ -74,6 +74,29 @@ test('authenticated user can access dashboard and APIs', async () => {
   assert.equal(createRes.body.success, true);
 });
 
+test('authenticated user can access CRM data pages', async () => {
+  const agent = request.agent(app);
+  await agent
+    .post('/login')
+    .type('form')
+    .send({ username: 'testuser', password: 'testpass' })
+    .expect(302);
+
+  for (const [path, heading] of [
+    ['/customers', 'Customers'],
+    ['/orders', 'Orders &amp; Invoices'],
+    ['/audit-logs', 'Security Audit Logs']
+  ]) {
+    const res = await agent.get(path);
+    assert.equal(res.status, 200);
+    assert.match(res.text, new RegExp(heading));
+  }
+
+  const logsRes = await agent.get('/api/audit-logs');
+  assert.equal(logsRes.status, 200);
+  assert.equal(typeof logsRes.body.count, 'number');
+});
+
 test('logout clears session and blocks protected routes again', async () => {
   const agent = request.agent(app);
   await agent
