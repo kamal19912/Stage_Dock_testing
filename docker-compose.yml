@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: stagedock
+      POSTGRES_USER: stagedock
+      POSTGRES_PASSWORD: stagedock-dev-password
+    volumes:
+      - stagedock-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stagedock -d stagedock"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      DEMO_LOGIN_USERNAME: admin
+      DEMO_LOGIN_PASSWORD: admin123
+      SESSION_SECRET: change-this-session-secret
+      DATABASE_URL: postgres://stagedock:stagedock-dev-password@db:5432/stagedock
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  stagedock-db-data:

@@ -1,6 +1,8 @@
 const express = require('express');
 const session = require('express-session');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const { Pool } = require('pg');
 
 const app = express();
@@ -636,17 +638,9 @@ function renderDashboardPage() {
 async function initDatabaseIfAvailable() {
   if (!pool) return;
   try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS customers (
-        id SERIAL PRIMARY KEY,
-        full_name VARCHAR(120) NOT NULL,
-        email VARCHAR(150) UNIQUE NOT NULL,
-        company VARCHAR(120) NOT NULL,
-        plan VARCHAR(40) DEFAULT 'ENTERPRISE',
-        status VARCHAR(30) DEFAULT 'ACTIVE',
-        created_at VARCHAR(50) DEFAULT '2025-02-18'
-      );
-    `);
+    const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
+    await pool.query(schema);
+
     const countRes = await pool.query('SELECT COUNT(*) FROM customers');
     if (parseInt(countRes.rows[0].count, 10) === 0) {
       for (const c of defaultCustomers) {
@@ -656,13 +650,62 @@ async function initDatabaseIfAvailable() {
         );
       }
     }
-    const dbRows = await pool.query('SELECT * FROM customers ORDER BY id DESC LIMIT 50');
-    if (dbRows.rows.length > 0) {
-      runtimeCustomers = dbRows.rows;
-      dbSourceMode = 'Live PostgreSQL Container (DATABASE_URL Connected)';
+
+    const orderCountRes = await pool.query('SELECT COUNT(*) FROM orders');
+    if (parseInt(orderCountRes.rows[0].count, 10) === 0) {
+      for (const order of defaultOrders) {
+        await pool.query(
+          `INSERT INTO orders
+            (invoice_number, customer_id, product_name, amount_inr, payment_status, created_at)
+           SELECT $1, id, $3, $4, $5, $6
+           FROM customers
+           WHERE full_name = $2
+           ON CONFLICT (invoice_number) DO NOTHING`,
+          [
+            order.invoice_number,
+            order.customer_name,
+            order.product_name,
+            order.amount_inr,
+            order.payment_status,
+            order.created_at
+          ]
+        );
+      }
     }
+
+    const logCountRes = await pool.query('SELECT COUNT(*) FROM audit_logs');
+    if (parseInt(logCountRes.rows[0].count, 10) === 0) {
+      for (const log of defaultAuditLogs) {
+        await pool.query(
+          `INSERT INTO audit_logs (actor, action, endpoint, risk_level)
+           VALUES ($1, $2, $3, $4)`,
+          [log.actor, log.action, log.endpoint, log.risk_level]
+        );
+      }
+    }
+
+    const dbRows = await pool.query('SELECT * FROM customers ORDER BY id DESC LIMIT 50');
+    const orderRows = await pool.query(`
+      SELECT o.id, o.invoice_number, c.full_name AS customer_name, c.company,
+             o.product_name, o.amount_inr, o.payment_status, o.created_at
+      FROM orders o
+      LEFT JOIN customers c ON c.id = o.customer_id
+      ORDER BY o.id DESC
+      LIMIT 50
+    `);
+    const logRows = await pool.query(`
+      SELECT id, actor, action, endpoint, risk_level, timestamp
+      FROM audit_logs
+      ORDER BY id DESC
+      LIMIT 50
+    `);
+
+    runtimeCustomers = dbRows.rows;
+    runtimeOrders = orderRows.rows;
+    runtimeLogs = logRows.rows;
+    dbSourceMode = 'Live PostgreSQL Container (DATABASE_URL Connected)';
   } catch (err) {
-    console.log('Using resilient in-memory dataset:', err.message);
+    console.error('Database initialization failed; using in-memory dataset:', err.message);
   }
 }
 
@@ -720,19 +763,61 @@ app.get('/api/orders', (req, res) => {
   res.json({ taxRatePercent: TAX_RATE_PERCENT, count: runtimeOrders.length, data: runtimeOrders });
 });
 
-app.post('/api/customers', (req, res) => {
+app.post('/api/customers', async (req, res) => {
   const { full_name, email, company, plan } = req.body;
+
+  if (
+    typeof full_name !== 'string' ||
+    typeof email !== 'string' ||
+    typeof company !== 'string' ||
+    !full_name.trim() ||
+    !company.trim() ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+    !['ENTERPRISE', 'PRO', 'STARTER'].includes(plan)
+  ) {
+    return res.status(400).json({
+      error: 'full_name, valid email, company, and supported plan are required'
+    });
+  }
+
   const newCustomer = {
-    id: runtimeCustomers.length + 101,
-    full_name: full_name || 'New Sandbox User',
-    email: email || `user${Date.now()}@company.in`,
-    company: company || 'Sandbox Corp',
-    plan: plan || 'ENTERPRISE',
+    id: runtimeCustomers.length
+      ? Math.max(...runtimeCustomers.map((customer) => Number(customer.id))) + 1
+      : 1,
+    full_name: full_name.trim(),
+    email: email.trim().toLowerCase(),
+    company: company.trim(),
+    plan,
     status: 'ACTIVE',
-    created_at: new Date().toLocaleTimeString()
+    created_at: new Date().toISOString()
   };
 
-  runtimeCustomers.unshift(newCustomer);
+  try {
+    if (pool) {
+      const customerResult = await pool.query(
+        `INSERT INTO customers (full_name, email, company, plan, status)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING *`,
+        [
+          newCustomer.full_name,
+          newCustomer.email,
+          newCustomer.company,
+          newCustomer.plan,
+          newCustomer.status
+        ]
+      );
+      Object.assign(newCustomer, customerResult.rows[0]);
+    }
+
+    runtimeCustomers.unshift(newCustomer);
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'A customer with this email already exists' });
+    }
+    console.error('Customer creation failed:', err.message);
+    return res.status(500).json({ error: 'Unable to create customer' });
+  }
+
   runtimeLogs.unshift({
     id: runtimeLogs.length + 1,
     actor: newCustomer.email,

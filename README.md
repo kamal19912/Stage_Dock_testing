@@ -14,7 +14,13 @@ Configure `.env` (or environment variables):
 - `DEMO_LOGIN_USERNAME` (default dev fallback: `admin`)
 - `DEMO_LOGIN_PASSWORD` (default dev fallback: `admin123`)
 - `SESSION_SECRET` (default dev fallback exists, set a strong secret for real use)
-- `DATABASE_URL` (optional)
+- `DATABASE_URL` (optional PostgreSQL connection string)
+
+Without `DATABASE_URL`, the app uses demo data in memory. With PostgreSQL, the app automatically:
+
+1. Creates the `customers`, `orders`, and `audit_logs` tables from `schema.sql`.
+2. Inserts demo customers, orders, and audit events when the tables are empty.
+3. Loads that data into the dashboard.
 
 ## Run
 
@@ -23,6 +29,21 @@ npm start
 ```
 
 Open `http://localhost:3000/login`, sign in, and you will be redirected to the protected dashboard at `/dashboard`.
+
+Default local login:
+
+- Username: `admin`
+- Password: `admin123`
+
+## Run with PostgreSQL and Docker
+
+The included Compose file starts PostgreSQL and the application together. Tables and dashboard demo data are created automatically on the first start.
+
+```bash
+docker compose up --build
+```
+
+Then open `http://localhost:3000/login`.
 
 ## Auth behavior
 
