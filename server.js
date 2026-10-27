@@ -18,9 +18,16 @@ const ANNOUNCEMENT_TEXT = '🚀 Live Database Sandbox Active — Connected to Ep
 const TAX_RATE_PERCENT = 18; // GST %
 // =========================================================================
 
-const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-only-change-me-session-secret';
-const DEMO_LOGIN_USERNAME = process.env.DEMO_LOGIN_USERNAME || 'admin';
-const DEMO_LOGIN_PASSWORD = process.env.DEMO_LOGIN_PASSWORD || 'admin123';
+const requiredEnv = ['SESSION_SECRET', 'DEMO_LOGIN_USERNAME', 'DEMO_LOGIN_PASSWORD'];
+const missingEnv = requiredEnv.filter((name) => !process.env[name]);
+
+if (missingEnv.length > 0) {
+  throw new Error(`Missing required environment variables: ${missingEnv.join(', ')}`);
+}
+
+const SESSION_SECRET = process.env.SESSION_SECRET;
+const DEMO_LOGIN_USERNAME = process.env.DEMO_LOGIN_USERNAME;
+const DEMO_LOGIN_PASSWORD = process.env.DEMO_LOGIN_PASSWORD;
 
 app.use(
   session({

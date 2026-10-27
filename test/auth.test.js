@@ -1,10 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const request = require('supertest');
 
+const testPassword = crypto.randomBytes(24).toString('hex');
 process.env.DEMO_LOGIN_USERNAME = 'testuser';
-process.env.DEMO_LOGIN_PASSWORD = 'testpass';
-process.env.SESSION_SECRET = 'test-session-secret';
+process.env.DEMO_LOGIN_PASSWORD = testPassword;
+process.env.SESSION_SECRET = crypto.randomBytes(32).toString('hex');
 
 const app = require('../server');
 
@@ -28,7 +30,7 @@ test('successful login redirects and sets session cookie', async () => {
   const res = await request(app)
     .post('/login')
     .type('form')
-    .send({ username: 'testuser', password: 'testpass' });
+    .send({ username: 'testuser', password: testPassword });
 
   assert.equal(res.status, 302);
   assert.equal(res.headers.location, '/dashboard');
@@ -51,7 +53,7 @@ test('authenticated user can access dashboard and APIs', async () => {
   await agent
     .post('/login')
     .type('form')
-    .send({ username: 'testuser', password: 'testpass' })
+    .send({ username: 'testuser', password: testPassword })
     .expect(302);
 
   const dashboardRes = await agent.get('/dashboard');
@@ -79,7 +81,7 @@ test('logout clears session and blocks protected routes again', async () => {
   await agent
     .post('/login')
     .type('form')
-    .send({ username: 'testuser', password: 'testpass' })
+    .send({ username: 'testuser', password: testPassword })
     .expect(302);
 
   const logoutRes = await agent.post('/logout');

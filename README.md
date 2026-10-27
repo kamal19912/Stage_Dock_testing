@@ -11,9 +11,9 @@ cp .env.example .env
 
 Configure `.env` (or environment variables):
 
-- `DEMO_LOGIN_USERNAME` (default dev fallback: `admin`)
-- `DEMO_LOGIN_PASSWORD` (default dev fallback: `admin123`)
-- `SESSION_SECRET` (default dev fallback exists, set a strong secret for real use)
+- `DEMO_LOGIN_USERNAME` (required)
+- `DEMO_LOGIN_PASSWORD` (required; use a strong password and keep it out of source control)
+- `SESSION_SECRET` (required; use a strong random secret and keep it out of source control)
 - `DATABASE_URL` (optional)
 
 ## Run
